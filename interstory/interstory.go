@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"fmt"
+	"html/template"
 )
 
 type Arc struct {
@@ -21,21 +22,85 @@ type Story struct {
 
 type StoryHandler struct {
 	Story *Story
+	Type  string
 }
 
 func (sh StoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path)
 	path := strings.TrimLeft(r.URL.Path, "/")
-	arc, exists := sh.Story.Arcs[path]
-	if exists {
-		fmt.Println(arc.Title)
-		fmt.Fprintln(w, arc.Title)
-	}
+	sh.RenderArc(path, w)
 }
 
-func NewStory(file string) (*Story, error) {
+func (sh StoryHandler) RenderArc(arcName string, w http.ResponseWriter) {
+	arc, exists := sh.Story.Arcs[arcName]
+	if !exists {
+		fmt.Println("!! Arc does not exists for: " + arcName)
+		return
+	}
+	renderer := NewRenderer(sh.Type)
+	tmpl := renderer.RenderTemplate()
+	tmpl.Execute(w, arc)
+}
+
+type StoryRenderer interface {
+	RenderTemplate() *template.Template
+}
+
+type HtmlRenderer struct {}
+
+func (hr HtmlRenderer) RenderTemplate() *template.Template {
+	htmlTemplate := `
+	<html>
+		<h2>{{.Title}}</h2>
+		{{range .Story}}
+			<p>{{.}}</p>
+		{{end}}
+
+		{{if .Options}}
+			<h3>Options</h3>
+			{{range .Options}}
+				<p>
+					{{index . "text"}} <a href="{{index . "arc"}}">Go!</a>
+				</p>
+			{{end}}
+		{{else}}
+			<a href="/intro">Start over</a>
+		{{end}}
+	</html>
+	`
+	tmpl, err := template.New("html").Parse(htmlTemplate)
+	if err != nil {
+		panic(err)
+	}
+	return tmpl
+}
+
+type ConsoleRenderer struct {}
+
+func (cr ConsoleRenderer) RenderTemplate() *template.Template {
+	textTemplate := `{{.Title}}
+		{{range .Story}}
+			{{.}}\n
+		{{end}}
+		{{if .Options}}
+			Options\n
+			{{range .Options}}
+				{{index . "text"}} <a href="{{index . "arc"}}">Go!</a>\n
+			{{end}}
+		{{else}}
+			<a href="/intro">Start over</a>\n
+		{{end}}
+	</html>
+	`
+	tmpl, err := template.New("text").Parse(textTemplate)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return tmpl
+}
+
+func NewStoryHandler(fileName string, presentationType string) (*StoryHandler, error) {
 	introArcName := "intro"
-	storyFile, err := ioutil.ReadFile(file)
+	storyFile, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -48,5 +113,16 @@ func NewStory(file string) (*Story, error) {
 	}
 
 	story := &Story{Arcs: arcs}
-	return story, nil
+	storyHandler := &StoryHandler{Story: story, Type: presentationType}
+	return storyHandler, nil
+}
+
+func NewRenderer(renderType string) StoryRenderer {
+	if (renderType == "html") {
+		return &HtmlRenderer{}
+	}
+	if (renderType == "console") {
+		return &ConsoleRenderer{}
+	}
+	return nil
 }

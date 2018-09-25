@@ -8,12 +8,12 @@ import (
 
 func main() {
 	port := "7000"
-	story, err := interstory.NewStory("story.json")
+	fileName := "story.json"
+	presentationType := "html"
+	storyHandler, err := interstory.NewStoryHandler(fileName, presentationType)
 	if err != nil {
 		panic(err)
 	}
-
-	storyHandler := interstory.StoryHandler{Story: story}
 	mux := http.NewServeMux()
 	mux.Handle("/", storyHandler)
 	fmt.Println("Listening at port " + port + "...")
