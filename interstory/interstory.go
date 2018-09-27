@@ -8,6 +8,9 @@ import (
 	"strings"
 	"fmt"
 	"html/template"
+	"os"
+	"bufio"
+	"bytes"
 )
 
 type Arc struct {
@@ -39,6 +42,32 @@ func (sh StoryHandler) RenderArc(arcName string, w http.ResponseWriter) {
 	renderer := NewRenderer(sh.Type)
 	tmpl := renderer.RenderTemplate()
 	tmpl.Execute(w, arc)
+}
+
+func (sh StoryHandler) RenderArcBytes(arcName string, w *bytes.Buffer) {
+	arc, exists := sh.Story.Arcs[arcName]
+	if !exists {
+		fmt.Println("!! Arc does not exists for: " + arcName)
+		return
+	}
+	renderer := NewRenderer(sh.Type)
+	tmpl := renderer.RenderTemplate()
+	tmpl.Execute(w, arc)
+}
+
+func (sh StoryHandler) RunConsole() {
+	currentArc := "intro"
+	for {
+
+		var tpl bytes.Buffer
+		reader := bufio.NewReader(os.Stdin)
+		sh.RenderArcBytes(currentArc, &tpl)
+		result := tpl.String()
+		fmt.Println(result)
+		answer, _ := reader.ReadString('\n')
+		answer = strings.TrimSuffix(answer, "\n")
+		fmt.Println(answer)
+	}
 }
 
 type StoryRenderer interface {
@@ -125,4 +154,23 @@ func NewRenderer(renderType string) StoryRenderer {
 		return &ConsoleRenderer{}
 	}
 	return nil
+}
+
+func Run(fileName string, presentationType string) {
+	storyHandler, err := NewStoryHandler(fileName, presentationType)
+	if err != nil {
+		panic(err)
+	}
+
+	if presentationType == "html" {
+		port := "7000"
+		mux := http.NewServeMux()
+		mux.Handle("/", storyHandler)
+		fmt.Println("Listening at port " + port + "...")
+		http.ListenAndServe(":" + port, mux)
+	}
+	if presentationType == "console" {
+		storyHandler.RunConsole()
+	}
+	
 }
