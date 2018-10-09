@@ -6,6 +6,6 @@ import (
 
 func main() {
 	fileName := "story.json"
-	presentationType := "console"
+	presentationType := "txt"
 	interstory.Run(fileName, presentationType)
 }

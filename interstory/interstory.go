@@ -29,20 +29,19 @@ type StoryHandler struct {
 	Type  string
 }
 
-func (sh StoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimLeft(r.URL.Path, "/")
-	sh.RenderArc(path, w)
-}
-
 func (sh StoryHandler) RenderArc(arcName string, w io.Writer) error {
 	arc, exists := sh.Story.Arcs[arcName]
 	if !exists {
 		return errors.New("!! Arc does not exists for: " + arcName)
 	}
-	renderer := NewRenderer(sh.Type)
-	tmpl := renderer.RenderTemplate()
+	tmpl := RenderTemplate(sh.Type)
 	tmpl.Execute(w, arc)
 	return nil
+}
+
+func (sh StoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimLeft(r.URL.Path, "/")
+	sh.RenderArc(path, w)
 }
 
 func (sh StoryHandler) RunConsole() {
@@ -70,34 +69,13 @@ func (sh StoryHandler) RunConsole() {
 	}
 }
 
-type StoryRenderer interface {
-	RenderTemplate() *template.Template
-}
-
-type HtmlRenderer struct {}
-
-func (hr HtmlRenderer) RenderTemplate() *template.Template {
-	htmlTemplate, err := ioutil.ReadFile("template.html")
+func RenderTemplate(templateType string) *template.Template {
+	templateText, err := ioutil.ReadFile("template." + templateType)
 	if err != nil {
 		return nil
 	}
 
-	tmpl, err := template.New("html").Parse(string(htmlTemplate))
-	if err != nil {
-		panic(err)
-	}
-	return tmpl
-}
-
-type ConsoleRenderer struct {}
-
-func (cr ConsoleRenderer) RenderTemplate() *template.Template {
-	textTemplate, err := ioutil.ReadFile("template.txt")
-	if err != nil {
-		return nil
-	}
-
-	tmpl, err := template.New("text").Parse(string(textTemplate))
+	tmpl, err := template.New("text").Parse(string(templateText))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -123,16 +101,6 @@ func NewStoryHandler(fileName string, presentationType string) (*StoryHandler, e
 	return storyHandler, nil
 }
 
-func NewRenderer(renderType string) StoryRenderer {
-	if (renderType == "html") {
-		return &HtmlRenderer{}
-	}
-	if (renderType == "console") {
-		return &ConsoleRenderer{}
-	}
-	return nil
-}
-
 func Run(fileName string, presentationType string) {
 	storyHandler, err := NewStoryHandler(fileName, presentationType)
 	if err != nil {
@@ -146,7 +114,7 @@ func Run(fileName string, presentationType string) {
 		fmt.Println("Listening at port " + port + "...")
 		http.ListenAndServe(":" + port, mux)
 	}
-	if presentationType == "console" {
+	if presentationType == "txt" {
 		storyHandler.RunConsole()
 	}
 	
