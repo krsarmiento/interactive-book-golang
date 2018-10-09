@@ -1,0 +1,17 @@
+<html>
+	<h2>{{.Title}}</h2>
+	{{range .Story}}
+		<p>{{.}}</p>
+	{{end}}
+
+	{{if .Options}}
+		<h3>Options</h3>
+		{{range .Options}}
+			<p>
+				{{index . "text"}} <a href="{{index . "arc"}}">Go!</a>
+			</p>
+		{{end}}
+	{{else}}
+		<a href="/intro">Start over</a>
+	{{end}}
+</html>

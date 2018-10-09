@@ -1,0 +1,12 @@
+{{.Title}}
+{{range .Story}}
+	{{.}}
+{{end}}
+{{if .Options}}
+	Options
+	{{range $index, $element := .Options}}
+		[{{index $element "arc"}}]: {{index $element "text"}}
+	{{end}}
+{{else}}
+	Write "intro" to Start over!
+{{end}}

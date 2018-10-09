@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"fmt"
@@ -33,40 +34,39 @@ func (sh StoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sh.RenderArc(path, w)
 }
 
-func (sh StoryHandler) RenderArc(arcName string, w http.ResponseWriter) {
+func (sh StoryHandler) RenderArc(arcName string, w io.Writer) error {
 	arc, exists := sh.Story.Arcs[arcName]
 	if !exists {
-		fmt.Println("!! Arc does not exists for: " + arcName)
-		return
+		return errors.New("!! Arc does not exists for: " + arcName)
 	}
 	renderer := NewRenderer(sh.Type)
 	tmpl := renderer.RenderTemplate()
 	tmpl.Execute(w, arc)
-}
-
-func (sh StoryHandler) RenderArcBytes(arcName string, w *bytes.Buffer) {
-	arc, exists := sh.Story.Arcs[arcName]
-	if !exists {
-		fmt.Println("!! Arc does not exists for: " + arcName)
-		return
-	}
-	renderer := NewRenderer(sh.Type)
-	tmpl := renderer.RenderTemplate()
-	tmpl.Execute(w, arc)
+	return nil
 }
 
 func (sh StoryHandler) RunConsole() {
 	currentArc := "intro"
+	oldArc := "intro"
+	var tpl bytes.Buffer
+	reader := bufio.NewReader(os.Stdin)
 	for {
-
-		var tpl bytes.Buffer
-		reader := bufio.NewReader(os.Stdin)
-		sh.RenderArcBytes(currentArc, &tpl)
-		result := tpl.String()
-		fmt.Println(result)
+		tpl.Reset()
+		err := sh.RenderArc(currentArc, &tpl)
+		if err != nil {
+			fmt.Println(err)
+			currentArc = oldArc
+			continue
+		}
+		arcText := tpl.String()
+		fmt.Println("********************************************")
+		fmt.Println(arcText)
+		fmt.Println("********************************************")
+		fmt.Print("Write the selection and press Enter >> ")
 		answer, _ := reader.ReadString('\n')
 		answer = strings.TrimSuffix(answer, "\n")
-		fmt.Println(answer)
+		oldArc = currentArc
+		currentArc = answer
 	}
 }
 
@@ -77,26 +77,12 @@ type StoryRenderer interface {
 type HtmlRenderer struct {}
 
 func (hr HtmlRenderer) RenderTemplate() *template.Template {
-	htmlTemplate := `
-	<html>
-		<h2>{{.Title}}</h2>
-		{{range .Story}}
-			<p>{{.}}</p>
-		{{end}}
+	htmlTemplate, err := ioutil.ReadFile("template.html")
+	if err != nil {
+		return nil
+	}
 
-		{{if .Options}}
-			<h3>Options</h3>
-			{{range .Options}}
-				<p>
-					{{index . "text"}} <a href="{{index . "arc"}}">Go!</a>
-				</p>
-			{{end}}
-		{{else}}
-			<a href="/intro">Start over</a>
-		{{end}}
-	</html>
-	`
-	tmpl, err := template.New("html").Parse(htmlTemplate)
+	tmpl, err := template.New("html").Parse(string(htmlTemplate))
 	if err != nil {
 		panic(err)
 	}
@@ -106,21 +92,12 @@ func (hr HtmlRenderer) RenderTemplate() *template.Template {
 type ConsoleRenderer struct {}
 
 func (cr ConsoleRenderer) RenderTemplate() *template.Template {
-	textTemplate := `{{.Title}}
-		{{range .Story}}
-			{{.}}\n
-		{{end}}
-		{{if .Options}}
-			Options\n
-			{{range .Options}}
-				{{index . "text"}} <a href="{{index . "arc"}}">Go!</a>\n
-			{{end}}
-		{{else}}
-			<a href="/intro">Start over</a>\n
-		{{end}}
-	</html>
-	`
-	tmpl, err := template.New("text").Parse(textTemplate)
+	textTemplate, err := ioutil.ReadFile("template.txt")
+	if err != nil {
+		return nil
+	}
+
+	tmpl, err := template.New("text").Parse(string(textTemplate))
 	if err != nil {
 		fmt.Println(err)
 	}
